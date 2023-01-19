@@ -6,8 +6,60 @@ chrome.runtime.sendMessage({method: "getLocalStorage", key: "isOn"}, function (r
     }
 });
 
-let intervalCheck;
-let intervalIdlePage;
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (msg.action == 'loadMore') {
+        crawlByIndustry()
+    }
+    if (msg.action == 'clickToNextOption') {
+        clickToNextOption()
+    }
+});
+
+let intervalTimeToCrawl;
+let intervalCheckToClick;
+let intervalToClickShowMore;
+let intervalToClickItem;
+
+let listOptionIndustry;
+let indexOptionIndustry = 0;
+
+function crawlByIndustry() {
+    console.log("crawlByIndustry")
+    setTimeout(() => {
+        let btnLoadMore = document.querySelectorAll('div[data-testid="cc_contentArea_viewmore_btn"]');
+
+        if (btnLoadMore.length > 0) {
+            console.log(btnLoadMore[0], "btnLoadMore")
+            intervalToClickShowMore = setInterval(() => {
+
+                let itemOfList = document.querySelectorAll('div[id="hashtagItemContainer"]');
+                if (itemOfList.length >= 30) {
+                    // clearInterval(intervalToClickShowMore);
+                    // let indexToClick = 0;
+                    // intervalToClickItem = setInterval(() => {
+                    //     itemOfList[indexToClick].click()
+                    //     if (indexToClick === 5) {
+                    //         clearInterval(intervalToClickItem)
+                    //     } else {
+                    //         indexToClick++;
+                    //     }
+                    // }, 2000)
+                    console.log("done industry")
+                }else {
+                    btnLoadMore[0].click();
+                }
+
+            }, 1000)
+        }
+    }, 3000)
+}
+
+function clickToNextOption() {
+    console.log("clickToNextOption")
+    indexOptionIndustry = indexOptionIndustry + 1;
+    if (listOptionIndustry.length > indexOptionIndustry)
+        listOptionIndustry[indexOptionIndustry].click();
+}
 
 window.addEventListener('load', function () {
     /**
@@ -15,52 +67,29 @@ window.addEventListener('load', function () {
      */
     if (!extensionReady) return;
 
-    clearInterval(intervalCheck)
-    clearInterval(intervalIdlePage)
-    let timeToReloadIdle = 1800000 + Math.floor(Math.random() * 100000);
-    intervalIdlePage = setInterval(() => {
-        window.location.href = 'https://tiktok.com';
-    }, timeToReloadIdle)
+    clearInterval(intervalTimeToCrawl)
+    clearInterval(intervalToClickShowMore)
+    intervalTimeToCrawl = setInterval(() => {
+        window.location.href = 'https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/en';
+    }, 3600000)
 
     /**!SECTION
      * Jamviet.com improve
      */
-    intervalCheck = setInterval(function () {
-        let searchPageVisible = String(window.location.href).search(/search\?q=/g)
+    function startCrawl() {
+        let searchPageVisible = String(window.location.href).search("business/creativecenter/inspiration/popular")
         if (searchPageVisible < 0) {
             return;
         }
-        let suggestVideo = document.querySelectorAll('div[data-e2e="search_top-item"]');
-        if (suggestVideo.length > 0) {
-            let valueSearch = document.querySelectorAll('input[data-e2e="search-user-input"]')[0].value;
-            let suggestUsers = document.querySelectorAll('a[data-e2e="search-user-info-container"]');
-            let suggestUserNames = document.querySelectorAll('p[data-e2e="search-user-unique-id"]');
 
-            if (suggestUsers.length > 0) {
-                let isHasUser = false;
+        setTimeout(() => {
+            listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]')).slice(-21).slice(0, 18)
+            listOptionIndustry[indexOptionIndustry].click();
+        }, 3000)
+    }
 
-                for (let i = 0; i < suggestUsers.length; i++) {
-                    if (suggestUserNames[i].textContent.trim().toLocaleString() == valueSearch.trim().toLocaleString()) {
-                        suggestUsers[i].click();
-                        isHasUser = true;
-                    }
-                }
-
-                if (!isHasUser) sendEmptyAccount()
-            } else {
-                sendEmptyAccount()
-            }
-        }
-
-    }, 1000);
-
+    startCrawl();
 });
-
-function sendEmptyAccount() {
-    chrome.runtime.sendMessage({action: "sendEmptyAccount"}, function (response) {
-
-    });
-}
 
 function canvas() {
     try {

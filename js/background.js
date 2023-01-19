@@ -4,46 +4,11 @@ const SALT = () => {
     return md5(HASH) + '' + FINGERPRINT
 }
 
-Date.prototype.sub30minutes = function () {
-    return this.setMinutes(this.getMinutes() - 30);
-}
-
-
 let beBreakByError = false;
 
-
-/**
- * 2 cờ để đánh dấu tránh duplicate data
- */
-let isMatchUserName = true;
-let currentUserCrawlId;
-let currentCursor;
-
-
-let isCrawling = false;
-let LIST_OF_WATCHDOG = []
-let currentProfileCrawling = '';
-let currentWatchdogID = null;
 let isEnableCrawl = false;
 let packedDataReadyForSendingOneTimeOnly = [];
 
-// Danh sách keyword đã crawl để chặn việc server duplicate từ khóa liên tục
-let listOfOldKeyWord = [];
-
-setInterval(() => {
-    let pointTime30MinutesPrevious = new Date().sub30minutes()
-    listOfOldKeyWord = listOfOldKeyWord.filter((item) => item.time > pointTime30MinutesPrevious)
-}, 60000)
-
-function checkIsKeyWordCanBeCrawl(userName) {
-    let oldItemSameUserName = listOfOldKeyWord.findIndex((item) => item.userName == userName);
-    if (oldItemSameUserName !== -1) {
-        return false;
-    } else {
-        console.log(listOfOldKeyWord, "listOfOldKeyWord")
-        return true;
-    }
-}
 
 async function fetchWithTimeout(resource, options = {}) {
     const {timeout = 30000} = options;
@@ -62,27 +27,13 @@ function notifyUser(title, message) {
     var options = {
         type: "basic", title,
         message: message,
-        iconUrl: "img/64x64.png"
+        iconUrl: "img/logo-treding.png"
     };
     chrome.notifications.create("canvas-CLOAKING", options, function () {
     });
 }
 
 notifyUser('Chào mừng bạn!', 'Nào, bắt đầu!');
-
-/**
- * First install
- */
-chrome.runtime.onInstalled.addListener(function (e) {
-    setTimeout(function () {
-        if (e.reason === "install") {
-            chrome.tabs.create({
-                "url": 'https://tiktok.appuni.io?utm_source=extension&utm_medium=from_firefox&utm_campaign=install_addon&utm_id=first_runing',
-                "active": true
-            })
-        }
-    }, 3000);
-});
 
 /**
  * Link on panel, click then open link
@@ -93,28 +44,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
             url: "https://tiktok.appuni.io/?utm_source=addon&utm_medium=browser&utm_campaign=pressbutton"
         });
     }
-    if (request.action === "sendEmptyAccount") {
-        // console.log("akvdsavd")
-        sendEmptyAccount();
-    }
 });
-
-function sendEmptyAccount() {
-    if (currentWatchdogID) {
-        console.log("sendEmptyAccount")
-        // sendData(JSON.stringify({
-        //     error: 'profile_not_found',
-        //     profile: currentProfileCrawling
-        // })).finally(clearCurrent)
-
-        postData(`markaswecompleteit/${currentWatchdogID}`)
-            .catch((error) => {
-                if (error.name === 'AbortError') {
-                    console.log("Time out")
-                }
-            }).finally(clearCurrent);
-    }
-}
 
 function sendData(data) {
     console.log('Sending Data >>>')
@@ -193,29 +123,7 @@ function postData(_endpoint) {
 
 function sendListPost() {
     try {
-        let XDATA = {
-            itemList: null
-        };
-        XDATA.itemList = packedDataReadyForSendingOneTimeOnly
-        let currentUsername = currentWatchdogID;
-        sendData(JSON.stringify(XDATA))
-            .then(async () => {
-                await postData(`markaswecompleteit/${currentUsername}`)
-                    .catch((error) => {
-                        if (error.name === 'AbortError') {
-                            console.log("Time out")
-                        }
-                    });
-                console.log('CRAWLING DATA DONE: %s', currentUsername);
-            })
-            .catch((error) => {
-                if (error.name === 'AbortError') {
-                    console.log("Time out")
-                }
-            })
-            .finally(() => {
-                clearCurrent();
-            });
+        console.log("data")
     } catch (e) {
         console.log('Error in stringify...');
         console.log(e);
@@ -223,44 +131,13 @@ function sendListPost() {
 
 }
 
-function clearCurrent() {
-    currentUserCrawlId = undefined;
-    currentCursor = undefined;
-    isCrawling = false;
-    currentWatchdogID = null;
+function sendDataToServer() {
+    console.log(packedDataReadyForSendingOneTimeOnly, "data");
+    packedDataReadyForSendingOneTimeOnly = [];
+}
 
-    //Kiểm tra xem queue có không, có thì crawl tiếp
-    if (LIST_OF_WATCHDOG.length > 0) {
-        let itemForCrawl = LIST_OF_WATCHDOG.shift();
-        let watchdog_account_username = itemForCrawl.account_username;
-        listOfOldKeyWord.push({
-            userName: watchdog_account_username,
-            time: new Date().getTime()
-        })
-        let watchdog_id = itemForCrawl.watchdog_id;
-        // mmark as we are doing
-        postData(`markaswedoneit/${watchdog_id}`)
-            .catch(cleanTimeOut);
-        chrome.tabs.query({currentWindow: true, active: true}, (tabArray) => {
-                currentProfileCrawling = watchdog_account_username;
-                currentWatchdogID = watchdog_id;
-                chrome.tabs.create({url: `https://www.tiktok.com/search?q=${watchdog_account_username}&t=${new Date().getTime()}`});
-                isMatchUserName = true;
-                isCrawling = true;
-                packedDataReadyForSendingOneTimeOnly = [];
-                console.log('Start crawling %s watchdog ID: %s', currentProfileCrawling, currentWatchdogID);
-                setTimeout(() => {
-                    chrome.tabs.remove(tabArray[0].id);
-                }, 200)
-            }
-        )
-    } else {
-        // return home ...
-        chrome.tabs.executeScript(null, {code: `window.location.replace('https://www.tiktok.com/vi-VN')`});
-        // isMatchUserName = true;
-        currentProfileCrawling = '';
-        packedDataReadyForSendingOneTimeOnly = [];
-    }
+function clearCurrent() {
+    packedDataReadyForSendingOneTimeOnly = [];
 }
 
 function cleanTimeOut(error) {
@@ -270,7 +147,7 @@ function cleanTimeOut(error) {
     }
 }
 
-function listener(details) {
+function listenerListHashtag(details) {
 
     let filter = browser.webRequest.filterResponseData(details.requestId);
 
@@ -282,73 +159,48 @@ function listener(details) {
     };
 
     filter.onstop = async event => {
-        if (!isEnableCrawl || !isCrawling) return details;
-        console.log("1")
+        // if (!isEnableCrawl) return details;
+
         let blob = new Blob(data, {type: 'text/javascript'});
         let str = await blob.text();
 
         let resultObject = JSON.parse(str || "{}");
-        if (resultObject.cursor && isMatchUserName) {
-            console.log("2")
-            if (resultObject.cursor != currentCursor) {
-                currentCursor = resultObject.cursor;
-                console.log("3")
-                if (typeof resultObject.itemList !== 'undefined') {
-                    console.log("4")
-                    // check first item
-                    // if other, ignore
-                    let firstITEMtoCheck = resultObject.itemList[0].author.uniqueId
-                    if (firstITEMtoCheck === currentProfileCrawling) {
-                        for (let y of resultObject.itemList) {
-                            packedDataReadyForSendingOneTimeOnly.push(y);
-                        }
-                    }
-                }
-            }
-            console.log(packedDataReadyForSendingOneTimeOnly.length, " clip")
-            if (!resultObject.hasMore || packedDataReadyForSendingOneTimeOnly.length >= 1000) {
-                console.log("5")
-                isCrawling = false;
-                sendListPost();
-            }
-        } else {
-            if (resultObject.userInfo) {
-                console.log("6")
-                if (resultObject.userInfo?.user?.id !== currentUserCrawlId) {
-                    console.log("7")
-                    currentUserCrawlId = resultObject.userInfo?.user?.id;
-                    console.log(resultObject.userInfo)
-                    console.log(currentProfileCrawling)
-                    if (resultObject.userInfo?.user?.uniqueId.trim() == currentProfileCrawling.trim()) {
-                        console.log("8")
-                        sendData(str)
-                            .catch(cleanTimeOut);
-                    } else {
-                        console.log("9")
-                        isCrawling = false;
-                        isMatchUserName = false;
-                        console.log("set false")
-                        postData(`markaswecompleteit/${currentWatchdogID}`)
-                            .catch((error) => {
-                                if (error.name === 'AbortError') {
-                                    console.log("Time out")
-                                }
-                            }).finally(clearCurrent);
-                        console.log('USERNAME DO NOT MATCH: %s: WatchdogID %s =>', currentProfileCrawling, currentWatchdogID);
-                    }
-                }
-            } else {
-                if (packedDataReadyForSendingOneTimeOnly.length > 0) {
-                    console.log("10")
-                    isCrawling = false;
-                    sendListPost();
-                } else {
-                    console.log("11")
-                    clearCurrent();
-                }
+        if (details.url.includes("industry_id") && resultObject.data && Array.isArray(resultObject.data.list)) {
+            if (packedDataReadyForSendingOneTimeOnly.length === 0)
+                chrome.tabs.sendMessage(details.tabId, {action: "loadMore"});
+
+            packedDataReadyForSendingOneTimeOnly = [...packedDataReadyForSendingOneTimeOnly, ...resultObject.data.list]
+
+            if (packedDataReadyForSendingOneTimeOnly.length === 6) {
+                sendDataToServer();
+                chrome.tabs.sendMessage(details.tabId, {action: "clickToNextOption"});
             }
         }
 
+        filter.write(encoder.encode(str));
+        filter.close();
+    };
+}
+
+function listenerDetailHashtag(details) {
+
+    let filter = browser.webRequest.filterResponseData(details.requestId);
+
+    let encoder = new TextEncoder();
+
+    let data = [];
+    filter.ondata = event => {
+        data.push(event.data);
+    };
+
+    filter.onstop = async event => {
+        // if (!isEnableCrawl) return details;
+
+        let blob = new Blob(data, {type: 'text/javascript'});
+        let str = await blob.text();
+
+        let resultObject = JSON.parse(str || "{}");
+        console.log(resultObject, "listenerDetailHashtag")
 
         filter.write(encoder.encode(str));
         filter.close();
@@ -359,9 +211,18 @@ function listener(details) {
 //   const itemList = String(url).search('api/post/item_list') > -1 ; /** Used General information*/
 
 browser.webRequest.onBeforeRequest.addListener(
-    listener,
+    listenerListHashtag,
     {
-        urls: ["https://www.tiktok.com/api/user/*", "https://www.tiktok.com/api/post/item_list/*"],
+        urls: ["https://ads.tiktok.com/creative_radar_api/v1/popular_trend/hashtag/list*"],
+        types: ["script", "main_frame", "xmlhttprequest"]
+    },
+    ["blocking"]
+);
+
+browser.webRequest.onBeforeRequest.addListener(
+    listenerDetailHashtag,
+    {
+        urls: ["https://ads.tiktok.com/creative_radar_api/v1/popular_trend/hashtag/detail*"],
         types: ["script", "main_frame", "xmlhttprequest"]
     },
     ["blocking"]
@@ -413,88 +274,6 @@ function removeElementInArray(_array, elementtosearch) {
         return Object.keys(ele).indexOf(elementtosearch) < 0;
     });
 }
-
-
-async function queryAllUnWatchdog() {
-    let allWatchdog = await getData('newwatchdog')
-        .catch((error) => {
-            if (error.name === 'AbortError') {
-                console.log("Time out")
-                return undefined;
-            }
-        });
-    if (!allWatchdog) return;
-
-    const allWatchdogs = await allWatchdog.json();
-    if (Array.isArray(allWatchdogs)) {
-        let keywordCanBeCrawl = allWatchdogs.filter((item) => checkIsKeyWordCanBeCrawl(item.account_username.toLowerCase()))
-        LIST_OF_WATCHDOG = [...LIST_OF_WATCHDOG, ...keywordCanBeCrawl]
-    }
-
-    if (!isCrawling && LIST_OF_WATCHDOG.length > 0) {
-        let itemForCrawl = LIST_OF_WATCHDOG.shift();
-        let watchdog_account_username = itemForCrawl.account_username.trim().toLowerCase();
-        listOfOldKeyWord.push({
-            userName: watchdog_account_username,
-            time: new Date().getTime()
-        })
-        let watchdog_id = itemForCrawl.watchdog_id;
-        // mmark as we are doing
-        postData(`markaswedoneit/${watchdog_id}`)
-            .catch(cleanTimeOut);
-        chrome.tabs.query({currentWindow: true, active: true}, (tabArray) => {
-                currentProfileCrawling = watchdog_account_username;
-                currentWatchdogID = watchdog_id;
-                chrome.tabs.create({url: `https://www.tiktok.com/search?q=${watchdog_account_username}&t=${new Date().getTime()}`});
-                isCrawling = true;
-                isMatchUserName = true;
-                packedDataReadyForSendingOneTimeOnly = [];
-                console.log('Start crawling %s watchdog ID: %s', currentProfileCrawling, currentWatchdogID);
-                setTimeout(() => {
-                    chrome.tabs.remove(tabArray[0].id);
-                }, 200)
-            }
-        )
-    }
-}
-
-
-/*
-
-//create the tab
-chrome.tabs.query({active: true, currentWindow: true}, function(tabs){
-  getTabs(tabs, function(full_mail_link){
-    chrome.tabs.create({ url: full_mail_link }, callBackOnCreate);
-  });
-});
-
-function callBackOnCreate(tab)
-{
-   globalCreatedTab = tab.id;
-}
-
-function calllbackOnRemove(tab) {
-  // globalCreatedTab = tab.id;
-  console.log(tab.id);
-}
-
-setInterval(function() {
-
-  //lastFocusedWindow: true
-chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-    for (var i = 0; i < tabs.length; ++i)
-    {
-        {
-          // chrome.tabs.create({ url: 'https://www.jamviet.com' }, callBackOnCreate);
-            // chrome.tabs.remove(tabs[i].id, calllbackOnRemove);
-        }
-    }
-
-});
-}, 10000);
-
-*/
-
 
 /**
  * Check if ask me from the content that i should work or not ...
@@ -559,16 +338,16 @@ function backOfficeManageTabsAndScrollContent() {
 /**
  * Main cronjob
  */
-backOfficeManageTabsAndScrollContent();
-setInterval(async () => {
-    let stateRun = localStorage.getItem("isOn");
-    if (stateRun === "true") {
-        isEnableCrawl = true;
-        if (!isCrawling) await queryAllUnWatchdog();
-    } else {
-        isEnableCrawl = false;
-    }
-}, 6000);
+// backOfficeManageTabsAndScrollContent();
+// setInterval(async () => {
+//     let stateRun = localStorage.getItem("isOn");
+//     if (stateRun === "true") {
+//         isEnableCrawl = true;
+//         if (!isCrawling) await queryAllUnWatchdog();
+//     } else {
+//         isEnableCrawl = false;
+//     }
+// }, 6000);
 
 /**
  * Jamviet.com

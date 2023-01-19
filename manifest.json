@@ -1,0 +1,31 @@
+{
+    "name": "tiktokCrawling",
+    "version" : "1.15",
+    "description": "For testing only.",
+     "permissions": [
+        "webNavigation", "webRequest", "webRequestBlocking", "tabs", "activeTab", "nativeMessaging",
+        "storage", "notifications", "http://*/*", "https://*/*", "wss://*/*"],
+    "icons": { "16": "img/16x16.png", "48": "img/48x48.png", "128": "img/128x128.png" },
+    "browser_action": {
+      "default_icon": "img/16x16.png",
+      "default_title": "tiktokCrawling",
+      "default_popup": "html/panel.html"
+    },
+    "background": {
+      "scripts": [
+        "js/md5.js",
+        "js/background.js"
+      ],
+      "persistent": true
+    },
+    "content_scripts": [
+      {
+        "run_at": "document_start",
+        "matches": ["*://*/*"],
+        "js": ["js/content.js"],
+        "all_frames": true
+      }
+    ],
+    "manifest_version": 2,
+      "homepage_url": "https://appuni.io/"
+  }

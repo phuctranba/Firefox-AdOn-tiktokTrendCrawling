@@ -7,7 +7,9 @@ const SALT = () => {
 let beBreakByError = false;
 
 let isEnableCrawl = false;
-let packedDataReadyForSendingOneTimeOnly = [];
+let packedListData = [];
+let currentListData = [];
+let packedListDetailData = [];
 
 
 async function fetchWithTimeout(resource, options = {}) {
@@ -132,12 +134,16 @@ function sendListPost() {
 }
 
 function sendDataToServer() {
-    console.log(packedDataReadyForSendingOneTimeOnly, "data");
-    packedDataReadyForSendingOneTimeOnly = [];
+    console.log(packedListData, "data");
+    packedListData = [];
+
+    // chrome.tabs.query({currentWindow: true}, function (tabs) {
+    //     chrome.tabs.sendMessage(tabs[0].id, {action: "clickToNextIndustryOption"});
+    // });
 }
 
 function clearCurrent() {
-    packedDataReadyForSendingOneTimeOnly = [];
+    packedListData = [];
 }
 
 function cleanTimeOut(error) {
@@ -165,15 +171,22 @@ function listenerListHashtag(details) {
         let str = await blob.text();
 
         let resultObject = JSON.parse(str || "{}");
-        if (details.url.includes("industry_id") && resultObject.data && Array.isArray(resultObject.data.list)) {
-            if (packedDataReadyForSendingOneTimeOnly.length === 0)
+        if (details.originUrl.includes("business/creativecenter/inspiration/popular/hashtag") && details.url.includes("industry_id") && resultObject.data && Array.isArray(resultObject.data.list)) {
+            currentListData = [...currentListData, ...resultObject.data.list]
+
+            if (currentListData.length < 100) {
                 chrome.tabs.sendMessage(details.tabId, {action: "loadMore"});
-
-            packedDataReadyForSendingOneTimeOnly = [...packedDataReadyForSendingOneTimeOnly, ...resultObject.data.list]
-
-            if (packedDataReadyForSendingOneTimeOnly.length === 6) {
-                sendDataToServer();
-                chrome.tabs.sendMessage(details.tabId, {action: "clickToNextOption"});
+            }else {
+                packedListData.push({
+                    ...currentListData[0].industry_info,
+                    data: currentListData
+                });
+                currentListData = [];
+                if(packedListData.length===18){
+                    sendDataToServer();
+                }else {
+                    chrome.tabs.sendMessage(details.tabId, {action: "clickToNextIndustryOption"});
+                }
             }
         }
 
@@ -200,7 +213,41 @@ function listenerDetailHashtag(details) {
         let str = await blob.text();
 
         let resultObject = JSON.parse(str || "{}");
-        console.log(resultObject, "listenerDetailHashtag")
+        if (resultObject.data && resultObject.data.info) {
+
+            let periodValue = new URL(details.url).searchParams.get("period");
+            let objectDetail;
+            if (!isNaN(Number(periodValue)) && Number(periodValue) !== 0) {
+                objectDetail = {
+                    period: Number(periodValue),
+                    data: resultObject.data.info
+                }
+            }
+
+            if (objectDetail) {
+                let indexHashtag = packedListData.findIndex(item => item.hashtag_id == resultObject.data.info.hashtag_id)
+                if (indexHashtag > -1) {
+                    packedListData[indexHashtag].data_period = [...(packedListData[indexHashtag].data_period || []), objectDetail]
+                }
+
+                if ((packedListData[indexHashtag].data_period || []).length === 5) {
+                    chrome.tabs.remove(details.tabId);
+                    let isDoneAllHashTag = true;
+                    packedListData.forEach((item) => {
+                        if ((item.data_period || []).length < 5) {
+                            isDoneAllHashTag = false;
+                        }
+                    })
+                    console.log(isDoneAllHashTag,"isDoneAllHashTag")
+                    console.log(packedListData,"packedListData")
+                    if (isDoneAllHashTag) {
+                        sendDataToServer();
+                    }
+                }else {
+                    chrome.tabs.sendMessage(details.tabId, {action: "clickToNextPeriodOption"});
+                }
+            }
+        }
 
         filter.write(encoder.encode(str));
         filter.close();

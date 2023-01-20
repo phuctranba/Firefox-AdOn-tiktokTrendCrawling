@@ -10,55 +10,70 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (msg.action == 'loadMore') {
         crawlByIndustry()
     }
-    if (msg.action == 'clickToNextOption') {
-        clickToNextOption()
+    if (msg.action == 'clickToNextIndustryOption') {
+        clickToNextIndustryOption()
+    }
+    if (msg.action == 'clickToNextPeriodOption') {
+        clickToNextPeriodOption()
     }
 });
 
 let intervalTimeToCrawl;
-let intervalCheckToClick;
 let intervalToClickShowMore;
 let intervalToClickItem;
 
 let listOptionIndustry;
 let indexOptionIndustry = 0;
 
+let listOptionPeriod;
+let indexOptionPeriod = 4;
+
 function crawlByIndustry() {
     console.log("crawlByIndustry")
-    setTimeout(() => {
-        let btnLoadMore = document.querySelectorAll('div[data-testid="cc_contentArea_viewmore_btn"]');
+    let btnLoadMore = document.querySelectorAll('div[data-testid="cc_contentArea_viewmore_btn"]');
 
-        if (btnLoadMore.length > 0) {
-            console.log(btnLoadMore[0], "btnLoadMore")
-            intervalToClickShowMore = setInterval(() => {
+    if (btnLoadMore.length > 0) {
+        // intervalToClickShowMore = setInterval(() => {
 
-                let itemOfList = document.querySelectorAll('div[id="hashtagItemContainer"]');
-                if (itemOfList.length >= 30) {
-                    // clearInterval(intervalToClickShowMore);
-                    // let indexToClick = 0;
-                    // intervalToClickItem = setInterval(() => {
-                    //     itemOfList[indexToClick].click()
-                    //     if (indexToClick === 5) {
-                    //         clearInterval(intervalToClickItem)
-                    //     } else {
-                    //         indexToClick++;
-                    //     }
-                    // }, 2000)
-                    console.log("done industry")
-                }else {
-                    btnLoadMore[0].click();
-                }
+            // let itemOfList = document.querySelectorAll('div[id="hashtagItemContainer"]');
+            // if (itemOfList.length >= 110) {
+            //     clearInterval(intervalToClickShowMore);
+            //     let indexToClick = 0;
+            //     intervalToClickItem = setInterval(() => {
+            //         itemOfList[indexToClick].click()
+            //         if (indexToClick === 5) {
+            //             clearInterval(intervalToClickItem)
+            //         } else {
+            //             indexToClick++;
+            //         }
+            //     }, 1000)
+            //     console.log("done industry")
+            // } else {
+            //     btnLoadMore[0].click();
+            // }
 
-            }, 1000)
-        }
-    }, 3000)
+            // btnLoadMore[0].click();
+
+        // }, 1000)
+
+        setTimeout(()=>{
+            btnLoadMore[0].click();
+        },2000)
+    }
 }
 
-function clickToNextOption() {
-    console.log("clickToNextOption")
+function clickToNextIndustryOption() {
+    console.log("clickToNextIndustryOption")
     indexOptionIndustry = indexOptionIndustry + 1;
     if (listOptionIndustry.length > indexOptionIndustry)
         listOptionIndustry[indexOptionIndustry].click();
+}
+
+function clickToNextPeriodOption() {
+    console.log("clickToNextPeriodOption")
+    indexOptionPeriod = indexOptionPeriod - 1;
+    if (indexOptionPeriod >= 0)
+        listOptionPeriod[indexOptionPeriod].click();
 }
 
 window.addEventListener('load', function () {
@@ -77,15 +92,25 @@ window.addEventListener('load', function () {
      * Jamviet.com improve
      */
     function startCrawl() {
-        let searchPageVisible = String(window.location.href).search("business/creativecenter/inspiration/popular")
-        if (searchPageVisible < 0) {
-            return;
+        let listHashtagPageVisible = String(window.location.href).search("business/creativecenter/inspiration/popular/hashtag")
+        if (listHashtagPageVisible >= 0) {
+            //Xử lý khi là list danh sách hashtag
+            setTimeout(() => {
+                listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'))
+                listOptionIndustry[indexOptionIndustry].click();
+            }, 2000)
+        } else {
+            let detailHashtagPageVisible = String(window.location.href).search("business/creativecenter/hashtag/")
+            if (detailHashtagPageVisible >= 0) {
+                //Xử lý khi là detail hashtag
+                setTimeout(() => {
+                    listOptionPeriod = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'));
+                    listOptionPeriod[indexOptionPeriod].click();
+                }, 2000)
+            }
         }
 
-        setTimeout(() => {
-            listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]')).slice(-21).slice(0, 18)
-            listOptionIndustry[indexOptionIndustry].click();
-        }, 3000)
+
     }
 
     startCrawl();

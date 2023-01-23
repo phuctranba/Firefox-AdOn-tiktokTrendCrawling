@@ -4,12 +4,49 @@ const SALT = () => {
     return md5(HASH) + '' + FINGERPRINT
 }
 
+Date.prototype.sub30minutes = function () {
+    return this.setMinutes(this.getMinutes() - 30);
+}
+
 let beBreakByError = false;
 
 let isEnableCrawl = false;
 let packedListData = [];
 let currentListData = [];
 let packedListDetailData = [];
+
+
+/**
+ * 2 cờ để đánh dấu tránh duplicate data
+ */
+let currentUserCrawlId;
+let currentCursor;
+
+
+let isCrawling = false;
+let LIST_OF_WATCHDOG = []
+let currentProfileCrawling = '';
+let currentWatchdogID = null;
+let packedDataDetailPeriodHashtag = [];
+let packedDataRelatedVideoHashtag = [];
+
+// Danh sách keyword đã crawl để chặn việc server duplicate từ khóa liên tục
+let listOfOldKeyWord = [];
+
+setInterval(() => {
+    let pointTime30MinutesPrevious = new Date().sub30minutes()
+    listOfOldKeyWord = listOfOldKeyWord.filter((item) => item.time > pointTime30MinutesPrevious)
+}, 60000)
+
+function checkIsKeyWordCanBeCrawl(userName) {
+    let oldItemSameUserName = listOfOldKeyWord.findIndex((item) => item.userName == userName);
+    if (oldItemSameUserName !== -1) {
+        return false;
+    } else {
+        console.log(listOfOldKeyWord, "listOfOldKeyWord")
+        return true;
+    }
+}
 
 
 async function fetchWithTimeout(resource, options = {}) {
@@ -48,6 +85,23 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     }
 });
 
+function sendEmptyHashtagDetail() {
+    if (currentWatchdogID) {
+        console.log("sendEmptyAccount")
+        // sendData(JSON.stringify({
+        //     error: 'profile_not_found',
+        //     profile: currentProfileCrawling
+        // })).finally(clearCurrent)
+
+        postData(`markaswecompleteit/${currentWatchdogID}`)
+            .catch((error) => {
+                if (error.name === 'AbortError') {
+                    console.log("Time out")
+                }
+            }).finally(clearCurrent);
+    }
+}
+
 function sendData(data) {
     console.log('Sending Data >>>')
     return fetchWithTimeout('http://tiktok.appuni.io:8081', {
@@ -66,7 +120,6 @@ function sendData(data) {
         referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
         body: (data) // body data type must match "Content-Type" header
     });
-
 }
 
 
@@ -123,27 +176,86 @@ function postData(_endpoint) {
 
 }
 
-function sendListPost() {
+function sendDetailHashtag() {
     try {
-        console.log("data")
+        let XDATA = {
+            hashtag_id: packedDataDetailPeriodHashtag[0].data.hashtag_id,
+            hashtag_name: packedDataDetailPeriodHashtag[0].data.hashtag_name,
+            dataPeriod: packedDataDetailPeriodHashtag,
+            dataRelatedVideo: packedDataRelatedVideoHashtag.slice(0, 60),
+        };
+        console.log(XDATA,"XDATA")
+        packedDataDetailPeriodHashtag = [];
+        packedDataRelatedVideoHashtag = [];
+        clearCurrent();
+        // let currentUsername = currentWatchdogID;
+        // sendData(JSON.stringify(XDATA))
+        //     .then(async () => {
+        //         await postData(`markaswecompleteit/${currentUsername}`)
+        //             .catch((error) => {
+        //                 if (error.name === 'AbortError') {
+        //                     console.log("Time out")
+        //                 }
+        //             });
+        //         console.log('CRAWLING DATA DONE: %s', currentUsername);
+        //     })
+        //     .catch((error) => {
+        //         if (error.name === 'AbortError') {
+        //             console.log("Time out")
+        //         }
+        //     })
+        //     .finally(() => {
+        //         clearCurrent();
+        //     });
     } catch (e) {
         console.log('Error in stringify...');
         console.log(e);
     }
-
 }
 
-function sendDataToServer() {
+function sendListHashtag() {
     console.log(packedListData, "data");
     packedListData = [];
-
-    // chrome.tabs.query({currentWindow: true}, function (tabs) {
-    //     chrome.tabs.sendMessage(tabs[0].id, {action: "clickToNextIndustryOption"});
-    // });
 }
 
 function clearCurrent() {
     packedListData = [];
+    currentUserCrawlId = undefined;
+    currentCursor = undefined;
+    isCrawling = false;
+    currentWatchdogID = null;
+
+    //Kiểm tra xem queue có không, có thì crawl tiếp
+    if (LIST_OF_WATCHDOG.length > 0) {
+        let itemForCrawl = LIST_OF_WATCHDOG.shift();
+        let watchdog_account_username = itemForCrawl.account_username;
+        listOfOldKeyWord.push({
+            userName: watchdog_account_username,
+            time: new Date().getTime()
+        })
+        let watchdog_id = itemForCrawl.watchdog_id;
+        // mmark as we are doing
+        postData(`markaswedoneit/${watchdog_id}`)
+            .catch(cleanTimeOut);
+        chrome.tabs.query({currentWindow: true, active: true}, (tabArray) => {
+                currentProfileCrawling = watchdog_account_username;
+                currentWatchdogID = watchdog_id;
+                chrome.tabs.create({url: `https://ads.tiktok.com/business/creativecenter/hashtag/${watchdog_account_username}/pc/en?countryCode=VN&period=7`});
+                isCrawling = true;
+                packedDataDetailPeriodHashtag = [];
+                console.log('Start crawling %s watchdog ID: %s', currentProfileCrawling, currentWatchdogID);
+                setTimeout(() => {
+                    if (tabArray.length > 1) {
+                        chrome.tabs.remove(tabArray[tabArray.length - 1].id);
+                    }
+                }, 200)
+            }
+        )
+    } else {
+        // return home ...
+        chrome.tabs.executeScript(null, {code: `window.location.replace('https://www.tiktok.com/vi-VN')`});
+        currentProfileCrawling = '';
+    }
 }
 
 function cleanTimeOut(error) {
@@ -165,7 +277,7 @@ function listenerListHashtag(details) {
     };
 
     filter.onstop = async event => {
-        // if (!isEnableCrawl) return details;
+        if (!isEnableCrawl) return details;
 
         let blob = new Blob(data, {type: 'text/javascript'});
         let str = await blob.text();
@@ -176,15 +288,15 @@ function listenerListHashtag(details) {
 
             if (currentListData.length < 100) {
                 chrome.tabs.sendMessage(details.tabId, {action: "loadMore"});
-            }else {
+            } else {
                 packedListData.push({
                     ...currentListData[0].industry_info,
                     data: currentListData
                 });
                 currentListData = [];
-                if(packedListData.length===18){
-                    sendDataToServer();
-                }else {
+                if (packedListData.length === 18) {
+                    sendListHashtag();
+                } else {
                     chrome.tabs.sendMessage(details.tabId, {action: "clickToNextIndustryOption"});
                 }
             }
@@ -207,7 +319,7 @@ function listenerDetailHashtag(details) {
     };
 
     filter.onstop = async event => {
-        // if (!isEnableCrawl) return details;
+        if (!isEnableCrawl) return details;
 
         let blob = new Blob(data, {type: 'text/javascript'});
         let str = await blob.text();
@@ -222,30 +334,47 @@ function listenerDetailHashtag(details) {
                     period: Number(periodValue),
                     data: resultObject.data.info
                 }
+
+                packedDataDetailPeriodHashtag.push(objectDetail)
+                console.log(packedDataDetailPeriodHashtag,"packedDataDetailPeriodHashtag")
+                chrome.tabs.sendMessage(details.tabId, {action: packedDataDetailPeriodHashtag.length === 5 ? "clickToShowRelatedVideo" : "clickToNextPeriodOption"});
+            } else {
+                sendEmptyHashtagDetail()
+            }
+        }
+
+        filter.write(encoder.encode(str));
+        filter.close();
+    };
+}
+
+function listenerRelatedVideoHashtag(details) {
+
+    let filter = browser.webRequest.filterResponseData(details.requestId);
+
+    let encoder = new TextEncoder();
+
+    let data = [];
+    filter.ondata = event => {
+        data.push(event.data);
+    };
+
+    filter.onstop = async event => {
+        if (!isEnableCrawl) return details;
+
+        let blob = new Blob(data, {type: 'text/javascript'});
+        let str = await blob.text();
+
+        let resultObject = JSON.parse(str || "{}");
+        if (resultObject.cursor) {
+            if (Array.isArray(resultObject.itemList)) {
+                packedDataRelatedVideoHashtag = [...packedDataRelatedVideoHashtag, ...resultObject.itemList];
             }
 
-            if (objectDetail) {
-                let indexHashtag = packedListData.findIndex(item => item.hashtag_id == resultObject.data.info.hashtag_id)
-                if (indexHashtag > -1) {
-                    packedListData[indexHashtag].data_period = [...(packedListData[indexHashtag].data_period || []), objectDetail]
-                }
-
-                if ((packedListData[indexHashtag].data_period || []).length === 5) {
-                    chrome.tabs.remove(details.tabId);
-                    let isDoneAllHashTag = true;
-                    packedListData.forEach((item) => {
-                        if ((item.data_period || []).length < 5) {
-                            isDoneAllHashTag = false;
-                        }
-                    })
-                    console.log(isDoneAllHashTag,"isDoneAllHashTag")
-                    console.log(packedListData,"packedListData")
-                    if (isDoneAllHashTag) {
-                        sendDataToServer();
-                    }
-                }else {
-                    chrome.tabs.sendMessage(details.tabId, {action: "clickToNextPeriodOption"});
-                }
+            if (!resultObject.hasMore || packedDataRelatedVideoHashtag.length >= 60) {
+                isCrawling = false;
+                sendDetailHashtag();
+                chrome.tabs.remove(details.tabId);
             }
         }
 
@@ -275,13 +404,22 @@ browser.webRequest.onBeforeRequest.addListener(
     ["blocking"]
 );
 
+browser.webRequest.onBeforeRequest.addListener(
+    listenerRelatedVideoHashtag,
+    {
+        urls: ["https://www.tiktok.com/api/challenge/item_list*"],
+        types: ["script", "main_frame", "xmlhttprequest"]
+    },
+    ["blocking"]
+);
+
 browser.webRequest.onResponseStarted.addListener(
     (detail) => {
         if (detail.statusCode >= 400) {
             beBreakByError = true;
             clearCurrent()
             setTimeout(() => {
-                chrome.tabs.executeScript(null, {code: `window.location.replace('https://www.tiktok.com/search?q=keyword&t=${new Date().getTime()}')`});
+                chrome.tabs.update(detail.tabId, {url: "https://www.tiktok.com"})
             }, 60000)
 
             localStorage.setItem("isOn", "false")
@@ -296,7 +434,7 @@ browser.webRequest.onResponseStarted.addListener(
         return detail;
     },
     {
-        urls: ["https://www.tiktok.com/search*"],
+        urls: ["*"],
         types: ["script", "main_frame", "xmlhttprequest"]
     }
 );
@@ -320,6 +458,50 @@ function removeElementInArray(_array, elementtosearch) {
     return _array = _array.filter((ele) => {
         return Object.keys(ele).indexOf(elementtosearch) < 0;
     });
+}
+
+async function queryAllUnWatchdog() {
+    let allWatchdog = await getData('newwatchdog')
+        .catch((error) => {
+            if (error.name === 'AbortError') {
+                console.log("Time out")
+                return undefined;
+            }
+        });
+    if (!allWatchdog) return;
+
+    const allWatchdogs = await allWatchdog.json();
+    if (Array.isArray(allWatchdogs)) {
+        let keywordCanBeCrawl = allWatchdogs.filter((item) => checkIsKeyWordCanBeCrawl(item.account_username.toLowerCase()))
+        LIST_OF_WATCHDOG = [...LIST_OF_WATCHDOG, ...keywordCanBeCrawl]
+    }
+
+    if (!isCrawling && LIST_OF_WATCHDOG.length > 0) {
+        let itemForCrawl = LIST_OF_WATCHDOG.shift();
+        let watchdog_account_username = itemForCrawl.account_username.trim().toLowerCase();
+        listOfOldKeyWord.push({
+            userName: watchdog_account_username,
+            time: new Date().getTime()
+        })
+        let watchdog_id = itemForCrawl.watchdog_id;
+        // mmark as we are doing
+        postData(`markaswedoneit/${watchdog_id}`)
+            .catch(cleanTimeOut);
+        chrome.tabs.query({currentWindow: true, active: true}, (tabArray) => {
+                currentProfileCrawling = watchdog_account_username;
+                currentWatchdogID = watchdog_id;
+                chrome.tabs.create({url: `https://ads.tiktok.com/business/creativecenter/hashtag/${watchdog_account_username}/pc/en?countryCode=VN&period=7`});
+                isCrawling = true;
+                packedDataDetailPeriodHashtag = [];
+                console.log('Start crawling %s watchdog ID: %s', currentProfileCrawling, currentWatchdogID);
+                setTimeout(() => {
+                    if (tabArray.length > 1) {
+                        chrome.tabs.remove(tabArray[tabArray.length - 1].id);
+                    }
+                }, 200)
+            }
+        )
+    }
 }
 
 /**
@@ -385,16 +567,16 @@ function backOfficeManageTabsAndScrollContent() {
 /**
  * Main cronjob
  */
-// backOfficeManageTabsAndScrollContent();
-// setInterval(async () => {
-//     let stateRun = localStorage.getItem("isOn");
-//     if (stateRun === "true") {
-//         isEnableCrawl = true;
-//         if (!isCrawling) await queryAllUnWatchdog();
-//     } else {
-//         isEnableCrawl = false;
-//     }
-// }, 6000);
+backOfficeManageTabsAndScrollContent();
+setInterval(async () => {
+    let stateRun = localStorage.getItem("isOn");
+    if (stateRun === "true") {
+        isEnableCrawl = true;
+        if (!isCrawling) await queryAllUnWatchdog();
+    } else {
+        isEnableCrawl = false;
+    }
+}, 2000);
 
 /**
  * Jamviet.com

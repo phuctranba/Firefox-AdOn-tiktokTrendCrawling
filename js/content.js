@@ -7,20 +7,21 @@ chrome.runtime.sendMessage({method: "getLocalStorage", key: "isOn"}, function (r
 });
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-    if (msg.action == 'loadMore') {
+    if (msg.action === 'loadMore') {
         crawlByIndustry()
     }
-    if (msg.action == 'clickToNextIndustryOption') {
+    if (msg.action === 'clickToNextIndustryOption') {
         clickToNextIndustryOption()
     }
-    if (msg.action == 'clickToNextPeriodOption') {
+    if (msg.action === 'clickToNextPeriodOption') {
         clickToNextPeriodOption()
+    }
+    if (msg.action === 'clickToShowRelatedVideo') {
+        clickToShowRelatedVideo()
     }
 });
 
 let intervalTimeToCrawl;
-let intervalToClickShowMore;
-let intervalToClickItem;
 
 let listOptionIndustry;
 let indexOptionIndustry = 0;
@@ -75,6 +76,10 @@ function clickToNextPeriodOption() {
     if (indexOptionPeriod >= 0)
         listOptionPeriod[indexOptionPeriod].click();
 }
+function clickToShowRelatedVideo() {
+    console.log("clickToShowRelatedVideo")
+    document.querySelectorAll('div[class^="user-action-wrap"]')[0].children[1].click()
+}
 
 window.addEventListener('load', function () {
     /**
@@ -83,7 +88,6 @@ window.addEventListener('load', function () {
     if (!extensionReady) return;
 
     clearInterval(intervalTimeToCrawl)
-    clearInterval(intervalToClickShowMore)
     intervalTimeToCrawl = setInterval(() => {
         window.location.href = 'https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/en';
     }, 3600000)
@@ -95,10 +99,10 @@ window.addEventListener('load', function () {
         let listHashtagPageVisible = String(window.location.href).search("business/creativecenter/inspiration/popular/hashtag")
         if (listHashtagPageVisible >= 0) {
             //Xử lý khi là list danh sách hashtag
-            setTimeout(() => {
-                listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'))
-                listOptionIndustry[indexOptionIndustry].click();
-            }, 2000)
+            // setTimeout(() => {
+            //     listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'))
+            //     listOptionIndustry[indexOptionIndustry].click();
+            // }, 2000)
         } else {
             let detailHashtagPageVisible = String(window.location.href).search("business/creativecenter/hashtag/")
             if (detailHashtagPageVisible >= 0) {

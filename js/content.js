@@ -99,10 +99,10 @@ window.addEventListener('load', function () {
         let listHashtagPageVisible = String(window.location.href).search("business/creativecenter/inspiration/popular/hashtag")
         if (listHashtagPageVisible >= 0) {
             //Xử lý khi là list danh sách hashtag
-            // setTimeout(() => {
-            //     listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'))
-            //     listOptionIndustry[indexOptionIndustry].click();
-            // }, 2000)
+            setTimeout(() => {
+                listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'))
+                listOptionIndustry[indexOptionIndustry].click();
+            }, 2000)
         } else {
             let detailHashtagPageVisible = String(window.location.href).search("business/creativecenter/hashtag/")
             if (detailHashtagPageVisible >= 0) {

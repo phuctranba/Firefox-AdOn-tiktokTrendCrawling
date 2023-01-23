@@ -11,9 +11,11 @@ Date.prototype.sub30minutes = function () {
 let beBreakByError = false;
 
 let isEnableCrawl = false;
-let packedListData = [];
-let currentListData = [];
-let packedListDetailData = [];
+let packedListHashtagData = [];
+let currentListHashtagData = [];
+let currentListSoundData = [];
+let packedListSoundData = [];
+let packedListCreatorData = [];
 
 
 /**
@@ -184,7 +186,7 @@ function sendDetailHashtag() {
             dataPeriod: packedDataDetailPeriodHashtag,
             dataRelatedVideo: packedDataRelatedVideoHashtag.slice(0, 60),
         };
-        console.log(XDATA,"XDATA")
+        console.log(XDATA, "XDATA")
         packedDataDetailPeriodHashtag = [];
         packedDataRelatedVideoHashtag = [];
         clearCurrent();
@@ -214,12 +216,22 @@ function sendDetailHashtag() {
 }
 
 function sendListHashtag() {
-    console.log(packedListData, "data");
-    packedListData = [];
+    console.log(packedListHashtagData, "sendListHashtag");
+    packedListHashtagData = [];
+}
+
+function sendListSound() {
+    console.log(packedListSoundData, "sendListSound");
+    packedListSoundData = [];
+}
+
+function sendListCreator() {
+    console.log(packedListCreatorData, "sendListCreator");
+    packedListCreatorData = [];
 }
 
 function clearCurrent() {
-    packedListData = [];
+    packedListHashtagData = [];
     currentUserCrawlId = undefined;
     currentCursor = undefined;
     isCrawling = false;
@@ -284,20 +296,111 @@ function listenerListHashtag(details) {
 
         let resultObject = JSON.parse(str || "{}");
         if (details.originUrl.includes("business/creativecenter/inspiration/popular/hashtag") && details.url.includes("industry_id") && resultObject.data && Array.isArray(resultObject.data.list)) {
-            currentListData = [...currentListData, ...resultObject.data.list]
+            currentListHashtagData = [...currentListHashtagData, ...resultObject.data.list]
 
-            if (currentListData.length < 100) {
+            if (currentListHashtagData.length < 100) {
                 chrome.tabs.sendMessage(details.tabId, {action: "loadMore"});
             } else {
-                packedListData.push({
-                    ...currentListData[0].industry_info,
-                    data: currentListData
+                packedListHashtagData.push({
+                    ...currentListHashtagData[0].industry_info,
+                    data: currentListHashtagData
                 });
-                currentListData = [];
-                if (packedListData.length === 18) {
+                currentListHashtagData = [];
+                if (packedListHashtagData.length === 18) {
                     sendListHashtag();
+                    setTimeout(() => {
+                        chrome.tabs.update(detail.tabId, {url: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/music/pc/en"})
+                    }, 2000)
                 } else {
                     chrome.tabs.sendMessage(details.tabId, {action: "clickToNextIndustryOption"});
+                }
+            }
+        }
+
+        filter.write(encoder.encode(str));
+        filter.close();
+    };
+}
+
+function listenerListCreator(details) {
+
+    let filter = browser.webRequest.filterResponseData(details.requestId);
+
+    let encoder = new TextEncoder();
+
+    let data = [];
+    filter.ondata = event => {
+        data.push(event.data);
+    };
+
+    filter.onstop = async event => {
+        if (!isEnableCrawl) return details;
+
+        let blob = new Blob(data, {type: 'text/javascript'});
+        let str = await blob.text();
+
+        let resultObject = JSON.parse(str || "{}");
+        if (details.originUrl.includes("business/creativecenter/inspiration/popular/creator") && details.url.includes("audience_country") && resultObject.data && Array.isArray(resultObject.data.creators)) {
+            packedListCreatorData = [...packedListCreatorData, ...resultObject.data.creators]
+
+            if (currentListHashtagData.length < 100) {
+                chrome.tabs.sendMessage(details.tabId, {action: "loadMore"});
+            } else {
+                sendListCreator();
+                setTimeout(() => {
+                    chrome.tabs.update(detail.tabId, {url: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/en"})
+                }, 2000)
+            }
+        }
+
+        filter.write(encoder.encode(str));
+        filter.close();
+    };
+}
+
+function listenerListSound(details) {
+
+    let filter = browser.webRequest.filterResponseData(details.requestId);
+
+    let encoder = new TextEncoder();
+
+    let data = [];
+    filter.ondata = event => {
+        data.push(event.data);
+    };
+
+    filter.onstop = async event => {
+        if (!isEnableCrawl) return details;
+
+        let blob = new Blob(data, {type: 'text/javascript'});
+        let str = await blob.text();
+
+        let resultObject = JSON.parse(str || "{}");
+        if (details.originUrl.includes("business/creativecenter/inspiration/popular/music") && resultObject.data && Array.isArray(resultObject.data.sound_list)) {
+            currentListSoundData = [...currentListSoundData, ...resultObject.data.sound_list]
+
+            if (currentListSoundData.length < 100) {
+                chrome.tabs.sendMessage(details.tabId, {action: "loadMore"});
+            } else {
+                let rankTypeValue = new URL(details.url).searchParams.get("rank_type");
+
+                sendListSound(rankTypeValue == "popular");
+                setTimeout(() => {
+                    chrome.tabs.update(detail.tabId, {url: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/music/pc/en"})
+                }, 2000)
+
+                packedListSoundData.push({
+                    type: rankTypeValue,
+                    data: currentListSoundData
+                });
+                currentListSoundData = [];
+                if (packedListSoundData.length === 2) {
+                    sendListSound();
+                    setTimeout(() => {
+                        chrome.tabs.update(detail.tabId, {url: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/creator/pc/en"})
+                    }, 2000)
+                } else {
+                    chrome.tabs.sendMessage(details.tabId, {action: "clickToOtherRankTypeSound"});
                 }
             }
         }
@@ -336,7 +439,6 @@ function listenerDetailHashtag(details) {
                 }
 
                 packedDataDetailPeriodHashtag.push(objectDetail)
-                console.log(packedDataDetailPeriodHashtag,"packedDataDetailPeriodHashtag")
                 chrome.tabs.sendMessage(details.tabId, {action: packedDataDetailPeriodHashtag.length === 5 ? "clickToShowRelatedVideo" : "clickToNextPeriodOption"});
             } else {
                 sendEmptyHashtagDetail()
@@ -390,6 +492,24 @@ browser.webRequest.onBeforeRequest.addListener(
     listenerListHashtag,
     {
         urls: ["https://ads.tiktok.com/creative_radar_api/v1/popular_trend/hashtag/list*"],
+        types: ["script", "main_frame", "xmlhttprequest"]
+    },
+    ["blocking"]
+);
+
+browser.webRequest.onBeforeRequest.addListener(
+    listenerListSound,
+    {
+        urls: ["https://ads.tiktok.com/creative_radar_api/v1/popular_trend/sound/list*"],
+        types: ["script", "main_frame", "xmlhttprequest"]
+    },
+    ["blocking"]
+);
+
+browser.webRequest.onBeforeRequest.addListener(
+    listenerListCreator,
+    {
+        urls: ["https://ads.tiktok.com/creative_radar_api/v1/popular_trend/creator/list*"],
         types: ["script", "main_frame", "xmlhttprequest"]
     },
     ["blocking"]

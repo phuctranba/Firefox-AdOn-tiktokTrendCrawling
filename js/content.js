@@ -8,7 +8,7 @@ chrome.runtime.sendMessage({method: "getLocalStorage", key: "isOn"}, function (r
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (msg.action === 'loadMore') {
-        crawlByIndustry()
+        clickLoadMore()
     }
     if (msg.action === 'clickToNextIndustryOption') {
         clickToNextIndustryOption()
@@ -18,6 +18,9 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     }
     if (msg.action === 'clickToShowRelatedVideo') {
         clickToShowRelatedVideo()
+    }
+    if (msg.action === 'clickToOtherRankTypeSound') {
+        clickToOtherRankTypeSound()
     }
 });
 
@@ -29,37 +32,37 @@ let indexOptionIndustry = 0;
 let listOptionPeriod;
 let indexOptionPeriod = 4;
 
-function crawlByIndustry() {
-    console.log("crawlByIndustry")
+function clickLoadMore() {
+    console.log("clickLoadMore")
     let btnLoadMore = document.querySelectorAll('div[data-testid="cc_contentArea_viewmore_btn"]');
 
     if (btnLoadMore.length > 0) {
         // intervalToClickShowMore = setInterval(() => {
 
-            // let itemOfList = document.querySelectorAll('div[id="hashtagItemContainer"]');
-            // if (itemOfList.length >= 110) {
-            //     clearInterval(intervalToClickShowMore);
-            //     let indexToClick = 0;
-            //     intervalToClickItem = setInterval(() => {
-            //         itemOfList[indexToClick].click()
-            //         if (indexToClick === 5) {
-            //             clearInterval(intervalToClickItem)
-            //         } else {
-            //             indexToClick++;
-            //         }
-            //     }, 1000)
-            //     console.log("done industry")
-            // } else {
-            //     btnLoadMore[0].click();
-            // }
+        // let itemOfList = document.querySelectorAll('div[id="hashtagItemContainer"]');
+        // if (itemOfList.length >= 110) {
+        //     clearInterval(intervalToClickShowMore);
+        //     let indexToClick = 0;
+        //     intervalToClickItem = setInterval(() => {
+        //         itemOfList[indexToClick].click()
+        //         if (indexToClick === 5) {
+        //             clearInterval(intervalToClickItem)
+        //         } else {
+        //             indexToClick++;
+        //         }
+        //     }, 1000)
+        //     console.log("done industry")
+        // } else {
+        //     btnLoadMore[0].click();
+        // }
 
-            // btnLoadMore[0].click();
+        // btnLoadMore[0].click();
 
         // }, 1000)
 
-        setTimeout(()=>{
+        setTimeout(() => {
             btnLoadMore[0].click();
-        },2000)
+        }, 2000)
     }
 }
 
@@ -76,9 +79,15 @@ function clickToNextPeriodOption() {
     if (indexOptionPeriod >= 0)
         listOptionPeriod[indexOptionPeriod].click();
 }
+
 function clickToShowRelatedVideo() {
     console.log("clickToShowRelatedVideo")
     document.querySelectorAll('div[class^="user-action-wrap"]')[0].children[1].click()
+}
+
+function clickToOtherRankTypeSound() {
+    console.log("clickToOtherRankTypeSound")
+    document.querySelectorAll('span[data-testid^="cc_commonCom_tabChange_"]')[1].click()
 }
 
 window.addEventListener('load', function () {
@@ -98,19 +107,29 @@ window.addEventListener('load', function () {
     function startCrawl() {
         let listHashtagPageVisible = String(window.location.href).search("business/creativecenter/inspiration/popular/hashtag")
         if (listHashtagPageVisible >= 0) {
-            //Xử lý khi là list danh sách hashtag
+            //Xử lý khi là list danh sách hashtag trending
             setTimeout(() => {
                 listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'))
                 listOptionIndustry[indexOptionIndustry].click();
             }, 2000)
         } else {
-            let detailHashtagPageVisible = String(window.location.href).search("business/creativecenter/hashtag/")
-            if (detailHashtagPageVisible >= 0) {
-                //Xử lý khi là detail hashtag
+
+            let listHashtagPageVisible = String(window.location.href).search("business/creativecenter/inspiration/popular/creator")
+            if (listHashtagPageVisible >= 0) {
+                //Xử lý khi là list danh sách creator trending
                 setTimeout(() => {
-                    listOptionPeriod = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'));
-                    listOptionPeriod[indexOptionPeriod].click();
+                    listOptionIndustry = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'))
+                    listOptionIndustry[listOptionIndustry.length - 1].click();
                 }, 2000)
+            } else {
+                let detailHashtagPageVisible = String(window.location.href).search("business/creativecenter/hashtag/")
+                if (detailHashtagPageVisible >= 0) {
+                    //Xử lý khi là detail hashtag
+                    setTimeout(() => {
+                        listOptionPeriod = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'));
+                        listOptionPeriod[indexOptionPeriod].click();
+                    }, 2000)
+                }
             }
         }
 

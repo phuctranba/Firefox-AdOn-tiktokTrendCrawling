@@ -24,7 +24,6 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     }
 });
 
-let intervalTimeToCrawl;
 
 let listOptionIndustry;
 let indexOptionIndustry = 0;
@@ -82,7 +81,11 @@ function clickToNextPeriodOption() {
 
 function clickToShowRelatedVideo() {
     console.log("clickToShowRelatedVideo")
-    document.querySelectorAll('div[class^="user-action-wrap"]')[0].children[1].click()
+    if(String(window.location.href).search("business/creativecenter/hashtag/")>=0){
+        document.querySelectorAll('div[class^="user-action-wrap"]')[0].children[1].click()
+    }else {
+        document.querySelectorAll('div[class^="pcbwrap"]')[0].children[0].click()
+    }
 }
 
 function clickToOtherRankTypeSound() {
@@ -95,11 +98,6 @@ window.addEventListener('load', function () {
      * if not turn on ... don't work
      */
     if (!extensionReady) return;
-
-    clearInterval(intervalTimeToCrawl)
-    intervalTimeToCrawl = setInterval(() => {
-        window.location.href = 'https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/en';
-    }, 3600000)
 
     /**!SECTION
      * Jamviet.com improve
@@ -123,17 +121,17 @@ window.addEventListener('load', function () {
                 }, 2000)
             } else {
                 let detailHashtagPageVisible = String(window.location.href).search("business/creativecenter/hashtag/")
-                if (detailHashtagPageVisible >= 0) {
-                    //Xử lý khi là detail hashtag
+                let detailSoundPageVisible = String(window.location.href).search("/business/creativecenter/song/")
+                if (detailHashtagPageVisible + detailSoundPageVisible >= 0) {
+                    //Xử lý khi là detail hashtag, sound
                     setTimeout(() => {
-                        listOptionPeriod = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[2].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'));
+                        listOptionPeriod = Array.from(document.querySelectorAll('div[class="byted-popover-inner"]')[detailHashtagPageVisible >= 0 ? 2 : 3].querySelectorAll('div[class="byted-list-item-inner-wrapper byted-select-option-inner-wrapper"]'));
+                        indexOptionPeriod = listOptionPeriod.length-1;
                         listOptionPeriod[indexOptionPeriod].click();
                     }, 2000)
                 }
             }
         }
-
-
     }
 
     startCrawl();

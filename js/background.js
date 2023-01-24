@@ -16,6 +16,7 @@ let currentListHashtagData = [];
 let currentListSoundData = [];
 let packedListSoundData = [];
 let packedListCreatorData = [];
+let packedListVideoTrendingData = [];
 
 
 /**
@@ -29,15 +30,33 @@ let isCrawling = false;
 let LIST_OF_WATCHDOG = []
 let currentProfileCrawling = '';
 let currentWatchdogID = null;
-let packedDataDetailPeriodHashtag = [];
-let packedDataRelatedVideoHashtag = [];
+let packedDataDetailPeriodHashtagSound = [];
+let packedDataRelatedVideoHashtagSound = [];
 
 // Danh sách keyword đã crawl để chặn việc server duplicate từ khóa liên tục
 let listOfOldKeyWord = [];
 
 setInterval(() => {
+    chrome.tabs.create({
+        url: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/en"
+    });
+
+    setTimeout(() => [
+        chrome.tabs.query({currentWindow: true, active: true}, (tabArray) => {
+                tabArray.forEach((itemTab) => {
+                    if (itemTab.url == "https://ads.tiktok.com/business/creativecenter/pc/en") {
+                        chrome.tabs.remove(itemTab.id);
+                    }
+                })
+            }
+        )
+    ], 200)
+}, 1000)
+
+setInterval(() => {
     let pointTime30MinutesPrevious = new Date().sub30minutes()
     listOfOldKeyWord = listOfOldKeyWord.filter((item) => item.time > pointTime30MinutesPrevious)
+
 }, 60000)
 
 function checkIsKeyWordCanBeCrawl(userName) {
@@ -181,14 +200,14 @@ function postData(_endpoint) {
 function sendDetailHashtag() {
     try {
         let XDATA = {
-            hashtag_id: packedDataDetailPeriodHashtag[0].data.hashtag_id,
-            hashtag_name: packedDataDetailPeriodHashtag[0].data.hashtag_name,
-            dataPeriod: packedDataDetailPeriodHashtag,
-            dataRelatedVideo: packedDataRelatedVideoHashtag.slice(0, 60),
+            hashtag_id: packedDataDetailPeriodHashtagSound[0].data.hashtag_id,
+            hashtag_name: packedDataDetailPeriodHashtagSound[0].data.hashtag_name,
+            dataPeriod: packedDataDetailPeriodHashtagSound,
+            dataRelatedVideo: packedDataRelatedVideoHashtagSound.slice(0, 60),
         };
         console.log(XDATA, "XDATA")
-        packedDataDetailPeriodHashtag = [];
-        packedDataRelatedVideoHashtag = [];
+        packedDataDetailPeriodHashtagSound = [];
+        packedDataRelatedVideoHashtagSound = [];
         clearCurrent();
         // let currentUsername = currentWatchdogID;
         // sendData(JSON.stringify(XDATA))
@@ -230,6 +249,13 @@ function sendListCreator() {
     packedListCreatorData = [];
 }
 
+
+function sendListVideoTrending() {
+    console.log(packedListVideoTrendingData, "sendListVideoTrending");
+    packedListVideoTrendingData = [];
+}
+
+
 function clearCurrent() {
     packedListHashtagData = [];
     currentUserCrawlId = undefined;
@@ -254,7 +280,7 @@ function clearCurrent() {
                 currentWatchdogID = watchdog_id;
                 chrome.tabs.create({url: `https://ads.tiktok.com/business/creativecenter/hashtag/${watchdog_account_username}/pc/en?countryCode=VN&period=7`});
                 isCrawling = true;
-                packedDataDetailPeriodHashtag = [];
+                packedDataDetailPeriodHashtagSound = [];
                 console.log('Start crawling %s watchdog ID: %s', currentProfileCrawling, currentWatchdogID);
                 setTimeout(() => {
                     if (tabArray.length > 1) {
@@ -343,12 +369,48 @@ function listenerListCreator(details) {
         if (details.originUrl.includes("business/creativecenter/inspiration/popular/creator") && details.url.includes("audience_country") && resultObject.data && Array.isArray(resultObject.data.creators)) {
             packedListCreatorData = [...packedListCreatorData, ...resultObject.data.creators]
 
-            if (currentListHashtagData.length < 100) {
+            if (packedListCreatorData.length < 100) {
                 chrome.tabs.sendMessage(details.tabId, {action: "loadMore"});
             } else {
                 sendListCreator();
                 setTimeout(() => {
                     chrome.tabs.update(detail.tabId, {url: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/en"})
+                }, 2000)
+            }
+        }
+
+        filter.write(encoder.encode(str));
+        filter.close();
+    };
+}
+
+function listenerListVideoTrending(details) {
+
+    let filter = browser.webRequest.filterResponseData(details.requestId);
+
+    let encoder = new TextEncoder();
+
+    let data = [];
+    filter.ondata = event => {
+        data.push(event.data);
+    };
+
+    filter.onstop = async event => {
+        if (!isEnableCrawl) return details;
+
+        let blob = new Blob(data, {type: 'text/javascript'});
+        let str = await blob.text();
+
+        let resultObject = JSON.parse(str || "{}");
+        if (details.originUrl.includes("business/creativecenter/inspiration/popular") && resultObject.data && Array.isArray(resultObject.data.videos)) {
+            packedListVideoTrendingData = [...packedListVideoTrendingData, ...resultObject.data.videos]
+
+            if (packedListVideoTrendingData.length < 200) {
+                chrome.tabs.sendMessage(details.tabId, {action: "loadMore"});
+            } else {
+                sendListVideoTrending();
+                setTimeout(() => {
+                    chrome.tabs.update(detail.tabId, {url: "https://ads.tiktok.com/business/creativecenter/pc/en"})
                 }, 2000)
             }
         }
@@ -438,8 +500,17 @@ function listenerDetailHashtag(details) {
                     data: resultObject.data.info
                 }
 
-                packedDataDetailPeriodHashtag.push(objectDetail)
-                chrome.tabs.sendMessage(details.tabId, {action: packedDataDetailPeriodHashtag.length === 5 ? "clickToShowRelatedVideo" : "clickToNextPeriodOption"});
+                packedDataDetailPeriodHashtagSound.push(objectDetail)
+                let maxOfPeriod = details.originUrl.includes("business/creativecenter/hashtag") ? 5 : 3;
+                if (packedDataDetailPeriodHashtagSound.length === maxOfPeriod) {
+                    chrome.tabs.sendMessage(details.tabId, {action: "clickToShowRelatedVideo"});
+
+                    setTimeout(() => {
+                        chrome.tabs.remove(details.tabId);
+                    }, 200)
+                } else {
+                    chrome.tabs.sendMessage(details.tabId, {action: "clickToNextPeriodOption"});
+                }
             } else {
                 sendEmptyHashtagDetail()
             }
@@ -470,10 +541,10 @@ function listenerRelatedVideoHashtag(details) {
         let resultObject = JSON.parse(str || "{}");
         if (resultObject.cursor) {
             if (Array.isArray(resultObject.itemList)) {
-                packedDataRelatedVideoHashtag = [...packedDataRelatedVideoHashtag, ...resultObject.itemList];
+                packedDataRelatedVideoHashtagSound = [...packedDataRelatedVideoHashtagSound, ...resultObject.itemList];
             }
 
-            if (!resultObject.hasMore || packedDataRelatedVideoHashtag.length >= 60) {
+            if (!resultObject.hasMore || packedDataRelatedVideoHashtagSound.length >= 60) {
                 isCrawling = false;
                 sendDetailHashtag();
                 chrome.tabs.remove(details.tabId);
@@ -516,9 +587,18 @@ browser.webRequest.onBeforeRequest.addListener(
 );
 
 browser.webRequest.onBeforeRequest.addListener(
+    listenerListVideoTrending,
+    {
+        urls: ["https://ads.tiktok.com/creative_radar_api/v1/popular_trend/list*"],
+        types: ["script", "main_frame", "xmlhttprequest"]
+    },
+    ["blocking"]
+);
+
+browser.webRequest.onBeforeRequest.addListener(
     listenerDetailHashtag,
     {
-        urls: ["https://ads.tiktok.com/creative_radar_api/v1/popular_trend/hashtag/detail*"],
+        urls: ["https://ads.tiktok.com/creative_radar_api/v1/popular_trend/hashtag/detail*", "https://ads.tiktok.com/creative_radar_api/v1/popular_trend/sound/detail"],
         types: ["script", "main_frame", "xmlhttprequest"]
     },
     ["blocking"]
@@ -527,7 +607,7 @@ browser.webRequest.onBeforeRequest.addListener(
 browser.webRequest.onBeforeRequest.addListener(
     listenerRelatedVideoHashtag,
     {
-        urls: ["https://www.tiktok.com/api/challenge/item_list*"],
+        urls: ["https://www.tiktok.com/api/challenge/item_list*","https://www.tiktok.com/api/music/item_list"],
         types: ["script", "main_frame", "xmlhttprequest"]
     },
     ["blocking"]
@@ -612,7 +692,7 @@ async function queryAllUnWatchdog() {
                 currentWatchdogID = watchdog_id;
                 chrome.tabs.create({url: `https://ads.tiktok.com/business/creativecenter/hashtag/${watchdog_account_username}/pc/en?countryCode=VN&period=7`});
                 isCrawling = true;
-                packedDataDetailPeriodHashtag = [];
+                packedDataDetailPeriodHashtagSound = [];
                 console.log('Start crawling %s watchdog ID: %s', currentProfileCrawling, currentWatchdogID);
                 setTimeout(() => {
                     if (tabArray.length > 1) {
